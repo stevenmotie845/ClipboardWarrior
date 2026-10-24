@@ -4,6 +4,14 @@
 
 Unlike standard clipboard managers that keep your history locked inside an app window, ClipboardWarrior bridges your clipboard directly to your Mac's file system. It automatically captures, categorizes, and organizes your clips into real desktop files in real time—giving you instant access and long-term organization without manual effort.
 
+Screenshots:
+<img width="892" height="559" alt="Archive" src="https://github.com/user-attachments/assets/79a761d5-5223-40b9-bb17-d66c050899cc" />
+
+<img width="376" height="523" alt="ClipboardWarror General TXT" src="https://github.com/user-attachments/assets/bee5ddd8-4e08-4185-b6a1-0ef41ba16277" />
+
+<img width="373" height="515" alt="ClipboardWarrior Swift" src="https://github.com/user-attachments/assets/a6d8dfc3-e915-4687-8730-fa0ae56116b6" />
+
+
 ---
 
 ## ✨ Features
