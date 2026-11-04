@@ -6,7 +6,7 @@ Unlike standard clipboard managers that keep your history locked inside an app w
 
 **Screenshots:**
 
-<img width="892" height="559" alt="Archive" src="https://github.com/user-attachments/assets/79a761d5-5223-40b9-bb17-d66c050899cc" />
+<img width="1076" height="751" alt="clipboardwarrior_archive" src="https://github.com/user-attachments/assets/03699875-cd78-4678-a7e8-b2d43eaca732" />
 
 <img width="376" height="523" alt="ClipboardWarrior General TXT" src="https://github.com/user-attachments/assets/bee5ddd8-4e08-4185-b6a1-0ef41ba16277" />
 
