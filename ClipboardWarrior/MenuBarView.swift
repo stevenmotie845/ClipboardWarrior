@@ -9,7 +9,7 @@ import SwiftUI
 //   search          directly under the title
 //   filters         Pinned · Categories · Boards
 //   clip list       takes all remaining height
-//   footer          pause switch, autosave destination / status
+//   footer          pause switch
 
 struct MenuBarView: View {
     @Environment(ClipboardMonitor.self) private var monitor
@@ -327,31 +327,10 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-            } else {
-                HStack(spacing: 5) {
-                    Image(systemName: "folder")
-                    Text("Saving to")
-                        .foregroundStyle(.tertiary)
-                    Text(autosaveFolderName)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .help("Autosave destination: \(autosaveFolderPath)")
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-    }
-
-    private var autosaveFolderPath: String {
-        UserDefaults.standard.string(forKey: Pref.autosaveFolder) ?? Pref.defaultAutosavePath
-    }
-
-    private var autosaveFolderName: String {
-        autosave ? URL(fileURLWithPath: autosaveFolderPath).lastPathComponent : "Autosave off"
     }
 
     // MARK: Actions
@@ -369,3 +348,4 @@ struct MenuBarView: View {
         }
     }
 }
+
