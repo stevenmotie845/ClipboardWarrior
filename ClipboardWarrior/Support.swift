@@ -14,6 +14,8 @@ nonisolated enum Pref {
     static let ignoredApps = "ignoredApps"
     static let globalHotKey = "globalHotKey"
     static let hotKeyStyle = "hotKeyStyle"
+    static let quickPasteHotKey = "quickPasteHotKey"
+    static let quickPasteStyle = "quickPasteStyle"
 
     static let autosave = "autosave"
     static let autosaveFolder = "autosaveFolder"
@@ -36,17 +38,24 @@ nonisolated enum Pref {
         return NSHomeDirectory()
     }
 
-    /// Default autosave location: ~/Desktop/ClipboardWarrior
+    /// Default autosave location: ~/ClipboardWarrior.
     static var defaultAutosavePath: String {
-        (realHome as NSString).appendingPathComponent("Desktop/ClipboardWarrior")
+        (realHome as NSString).appendingPathComponent("ClipboardWarrior")
     }
 
     static func register() {
-        // Earlier builds saved the app-container path as the autosave folder. Drop it so the
-        // new default (Desktop/ClipboardWarrior) applies. A folder the user chose is kept.
         let d = UserDefaults.standard
-        if let old = d.string(forKey: autosaveFolder),
-           old.contains("/Library/Containers/") || old.hasSuffix("Autosaved Clips") {
+        let oldDesktopDefault = (realHome as NSString).appendingPathComponent("Desktop/ClipboardWarrior")
+        let storedFolder = Bundle.main.bundleIdentifier.flatMap { bundleID in
+            d.persistentDomain(forName: bundleID)?[autosaveFolder] as? String
+        }
+        // Migrate only the exact former default; preserve any explicitly chosen custom folder.
+        if let storedFolder,
+           (storedFolder as NSString).standardizingPath == (oldDesktopDefault as NSString).standardizingPath {
+            d.set(defaultAutosavePath, forKey: autosaveFolder)
+            d.removeObject(forKey: autosaveBookmark)
+        } else if let storedFolder,
+                  storedFolder.contains("/Library/Containers/") || storedFolder.hasSuffix("Autosaved Clips") {
             d.removeObject(forKey: autosaveFolder)
             d.removeObject(forKey: autosaveBookmark)
         }
@@ -60,6 +69,8 @@ nonisolated enum Pref {
             ignoredApps: defaultIgnoredApps,
             globalHotKey: true,
             hotKeyStyle: "commandShiftV",
+            quickPasteHotKey: true,
+            quickPasteStyle: "controlCommandV",
             autosave: true,
             autosaveFolder: defaultAutosavePath,
             autosaveMinChars: 1,

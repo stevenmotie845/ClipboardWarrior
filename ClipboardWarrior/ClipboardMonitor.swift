@@ -274,6 +274,11 @@ final class ClipboardMonitor {
         lastNote = note
     }
 
+    /// Shows a short status message in the menu bar popover footer.
+    func postNote(_ note: String) {
+        lastNote = note
+    }
+
     private func finishSync(written: Int, failure: String?) {
         lastNote = failure ?? "Saved \(written) clips to folder"
         if failure == nil { AutoSaver.openFolder() }
@@ -353,6 +358,24 @@ final class ClipboardMonitor {
         save()
     }
 
+    /// Permanently removes every clipboard item, including pinned clips, and associated image payloads.
+    func deleteAllClips() {
+        let descriptor = FetchDescriptor<ClipItem>()
+        guard let items = try? context.fetch(descriptor) else { return }
+        items.forEach(remove)
+        save()
+        lastNote = "Clipboard history cleared"
+    }
+
+    /// Removes every pinned clip without affecting unpinned history.
+    func deleteAllPinned() {
+        let descriptor = FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isPinned })
+        guard let items = try? context.fetch(descriptor) else { return }
+        items.forEach(remove)
+        save()
+        lastNote = "Pinned clips cleared"
+    }
+
     /// Removes every clip flagged as sensitive, pinned or not.
     func deleteAllSensitive() {
         let d = FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isSensitive })
@@ -404,6 +427,69 @@ final class ClipboardMonitor {
             if context.hasChanges { try context.save() }
         } catch {
             lastNote = "Save failed: \(error.localizedDescription)"
+        }
+    }
+}
+
+
+// MARK: - Confirmed bulk deletion
+
+extension ClipboardMonitor {
+    /// Total and pinned clip counts, used to make confirmation prompts specific.
+    func clipCounts() -> (total: Int, pinned: Int) {
+        let total = (try? context.fetchCount(FetchDescriptor<ClipItem>())) ?? 0
+        let pinned = (try? context.fetchCount(
+            FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isPinned }))) ?? 0
+        return (total, pinned)
+    }
+
+    private static func plural(_ count: Int) -> String { count == 1 ? "1 clip" : "\(count) clips" }
+
+    /// Asks first, then deletes every clip, pinned ones included.
+    func confirmDeleteAllClips(then completion: (() -> Void)? = nil) {
+        let counts = clipCounts()
+        guard counts.total > 0 else {
+            lastNote = "There are no clips to delete"
+            return
+        }
+        let pinnedLine = counts.pinned > 0 ? " This includes \(Self.plural(counts.pinned)) you pinned." : ""
+        Confirm.destructive(
+            title: "Delete all \(Self.plural(counts.total))?",
+            message: "Every clip in your library will be permanently deleted, along with saved image data.\(pinnedLine) Files already autosaved to your folder are not touched. This can’t be undone.",
+            actionTitle: "Delete All Clips"
+        ) { [weak self] in
+            self?.deleteAllClips()
+            completion?()
+        }
+    }
+
+    /// Asks first, then deletes only the pinned clips.
+    func confirmDeletePinnedClips(then completion: (() -> Void)? = nil) {
+        let counts = clipCounts()
+        guard counts.pinned > 0 else {
+            lastNote = "There are no pinned clips"
+            return
+        }
+        Confirm.destructive(
+            title: "Delete \(Self.plural(counts.pinned)) you pinned?",
+            message: "Only pinned clips are deleted. The rest of your history and any autosaved files stay as they are. This can’t be undone.",
+            actionTitle: "Delete Pinned Clips"
+        ) { [weak self] in
+            self?.deleteAllPinned()
+            completion?()
+        }
+    }
+
+    /// Asks first, then deletes every clip flagged as sensitive.
+    func confirmDeleteSensitiveClips(then completion: (() -> Void)? = nil) {
+        Confirm.destructive(
+            title: "Delete all sensitive clips?",
+            message: "Clips flagged as passwords, keys or card numbers are deleted, pinned ones too. This can’t be undone.",
+            actionTitle: "Delete Sensitive Clips"
+        ) { [weak self] in
+            self?.deleteAllSensitive()
+            self?.postNote("Sensitive clips deleted")
+            completion?()
         }
     }
 }

@@ -18,13 +18,17 @@ struct ClipboardWarriorApp: App {
             fatalError("Couldn't open the clip database: \(error)")
         }
         self.container = container
+        Self.repairBoardIcons(in: container.mainContext)
 
         let monitor = ClipboardMonitor(context: container.mainContext)
         monitor.start()
         _monitor = State(initialValue: monitor)
+
         let hotKey = GlobalHotKey()
-        hotKey.start(enabled: UserDefaults.standard.bool(forKey: Pref.globalHotKey))
+        hotKey.start()
         _globalHotKey = State(initialValue: hotKey)
+
+        QuickPasteController.shared.configure(container: container, monitor: monitor)
     }
 
     var body: some Scene {
@@ -42,11 +46,44 @@ struct ClipboardWarriorApp: App {
                 .environment(monitor)
                 .modelContainer(container)
         }
+        .commands {
+            ClipCommands(monitor: monitor)
+        }
 
         Settings {
             SettingsView()
                 .environment(monitor)
                 .modelContainer(container)
+        }
+    }
+
+    /// Boards created with the old "Code" icon stored `code`, which is not a real SF Symbol and
+    /// rendered blank. Point them at the correct symbol.
+    private static func repairBoardIcons(in context: ModelContext) {
+        guard let boards = try? context.fetch(FetchDescriptor<ClipCategory>()) else { return }
+        var changed = false
+        for board in boards {
+            let fixed = CWSymbol.resolved(board.symbol)
+            if fixed != board.symbol {
+                board.symbol = fixed
+                changed = true
+            }
+        }
+        if changed { try? context.save() }
+    }
+}
+
+/// Menu bar commands, available whenever the archive window is in front.
+struct ClipCommands: Commands {
+    let monitor: ClipboardMonitor
+
+    var body: some Commands {
+        CommandMenu("Clips") {
+            Button("Quick Paste…") { QuickPasteController.shared.toggle() }
+            Divider()
+            Button("Clear Pinned Clips…") { monitor.confirmDeletePinnedClips() }
+            Button("Delete All Clips…") { monitor.confirmDeleteAllClips() }
+                .keyboardShortcut(.delete, modifiers: [.command, .shift])
         }
     }
 }
@@ -59,9 +96,13 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         Image(systemName: monitor.isPaused ? "pause.circle" : "doc.on.clipboard")
+            .accessibilityLabel(monitor.isPaused ? "ClipboardWarrior, capture paused" : "ClipboardWarrior")
             .onReceive(NotificationCenter.default.publisher(for: .clipboardWarriorShowArchive)) { _ in
-                NSApp.activate()
+                WindowActivation.activateApp()
                 openWindow(id: "archive")
+                DispatchQueue.main.async {
+                    WindowActivation.bringWindowToFront(titled: "Clipboard Warrior")
+                }
             }
     }
 }

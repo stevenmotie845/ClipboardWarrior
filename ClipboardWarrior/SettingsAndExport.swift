@@ -18,6 +18,8 @@ struct SettingsView: View {
     @AppStorage(Pref.ignoredApps) private var ignoredApps = Pref.defaultIgnoredApps
     @AppStorage(Pref.globalHotKey) private var globalHotKey = true
     @AppStorage(Pref.hotKeyStyle) private var hotKeyStyle = "commandShiftV"
+    @AppStorage(Pref.quickPasteHotKey) private var quickPasteHotKey = true
+    @AppStorage(Pref.quickPasteStyle) private var quickPasteStyle = "controlCommandV"
 
     @AppStorage(Pref.autosave) private var autosave = true
     @AppStorage(Pref.autosaveFolder) private var autosaveFolder = Pref.defaultAutosavePath
@@ -27,8 +29,7 @@ struct SettingsView: View {
     @AppStorage(Pref.autosaveRealExt) private var autosaveRealExt = false
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var confirmClear = false
-    @State private var confirmClearSensitive = false
+    @State private var autoPasteAllowed = QuickPasteController.accessibilityGranted(prompt: false)
 
     var body: some View {
         Form {
@@ -44,9 +45,12 @@ struct SettingsView: View {
                     }
                 Toggle("Play a sound when a clip is saved", isOn: $playSound)
                 Toggle("Capture images", isOn: $captureImages)
-                Toggle("Global clipboard history shortcut", isOn: $globalHotKey)
-                    .onChange(of: globalHotKey) { _, enabled in
-                        NotificationCenter.default.post(name: .clipboardWarriorHotKeyPreferenceChanged, object: enabled)
+            }
+
+            Section("Shortcuts") {
+                Toggle("Open history with a global shortcut", isOn: $globalHotKey)
+                    .onChange(of: globalHotKey) { _, _ in
+                        NotificationCenter.default.post(name: .clipboardWarriorHotKeyPreferenceChanged, object: nil)
                     }
                 Picker("History shortcut", selection: $hotKeyStyle) {
                     Text("⌘⇧V").tag("commandShiftV")
@@ -56,8 +60,40 @@ struct SettingsView: View {
                 .onChange(of: hotKeyStyle) { _, _ in
                     NotificationCenter.default.post(name: .clipboardWarriorHotKeyPreferenceChanged, object: nil)
                 }
-                Text("Press ⌘⇧V anywhere to open history. Select a clip to copy it back.")
+
+                Toggle("Quick Paste shortcut", isOn: $quickPasteHotKey)
+                    .onChange(of: quickPasteHotKey) { _, _ in
+                        NotificationCenter.default.post(name: .clipboardWarriorHotKeyPreferenceChanged, object: nil)
+                    }
+                Picker("Quick Paste keys", selection: $quickPasteStyle) {
+                    Text("⌃⌘V").tag("controlCommandV")
+                    Text("⌥⇧V").tag("optionShiftV")
+                    Text("⌃⇧V").tag("controlShiftV")
+                }
+                .disabled(!quickPasteHotKey)
+                .onChange(of: quickPasteStyle) { _, _ in
+                    NotificationCenter.default.post(name: .clipboardWarriorHotKeyPreferenceChanged, object: nil)
+                }
+                Text("The history shortcut opens the archive. Quick Paste opens a small picker over whatever you’re working in; choose a clip and it is pasted straight into that app.")
                     .font(.caption).foregroundStyle(.secondary)
+
+                LabeledContent("Auto-paste access") {
+                    if autoPasteAllowed {
+                        Label("Allowed", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(CWStyle.success)
+                    } else {
+                        Button("Allow in System Settings…") {
+                            _ = QuickPasteController.accessibilityGranted(prompt: true)
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+                if !autoPasteAllowed {
+                    Text("Quick Paste presses ⌘V for you, which macOS only allows once ClipboardWarrior is listed under Privacy & Security › Accessibility. Until then it copies the clip and you paste it yourself.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("Autosave to folder") {
@@ -82,7 +118,7 @@ struct SettingsView: View {
                 }
                 .disabled(!autosave)
 
-                Text("Saves to Desktop/ClipboardWarrior by default, or the folder you choose. Passwords and keys are never written to disk.")
+                Text("Saves to ~/ClipboardWarrior by default, or the folder you choose. Passwords and keys are never written to disk.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -119,23 +155,18 @@ struct SettingsView: View {
             }
 
             Section("Data") {
-                Button("Delete all unpinned clips…", role: .destructive) { confirmClear = true }
-                Button("Delete all sensitive clips…", role: .destructive) { confirmClearSensitive = true }
+                Button("Delete all clips…", role: .destructive) { monitor.confirmDeleteAllClips() }
+                Button("Clear pinned clips…", role: .destructive) { monitor.confirmDeletePinnedClips() }
+                Button("Delete all sensitive clips…", role: .destructive) { monitor.confirmDeleteSensitiveClips() }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 540, height: 780)
-        .confirmationDialog("Delete all unpinned clips?", isPresented: $confirmClear) {
-            Button("Delete", role: .destructive) { monitor.deleteAllUnpinned() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This can't be undone.")
-        }
-        .confirmationDialog("Delete all sensitive clips?", isPresented: $confirmClearSensitive) {
-            Button("Delete", role: .destructive) { monitor.deleteAllSensitive() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Pinned ones too. This can't be undone.")
+        .frame(width: 560)
+        .frame(minHeight: 480, idealHeight: 760)
+        .background(WindowFrontmostBridge())
+        .onAppear {
+            WindowActivation.activateAndRaiseKeyWindow()
+            autoPasteAllowed = QuickPasteController.accessibilityGranted(prompt: false)
         }
     }
 
