@@ -223,7 +223,7 @@ struct ClipListView: View {
     private var emptyDescription: String {
         if hasSearch { return "Try a different search, or clear the filters." }
         if pinnedOnly { return "Pin a clip to keep it here." }
-        if customCategoryName != nil { return "Add clips you want to keep together from a clip’s menu." }
+        if customCategoryName != nil { return "Add clips you want to keep together from a clip's menu." }
         if hasKindFilter { return "Clips of this type will appear here as you copy them." }
         return "Copy something and it will show up here."
     }
@@ -289,6 +289,10 @@ struct ClipRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Without this, List (NSTableView-backed on macOS) caches a row height computed
+        // before the two-line preview Text finishes wrapping against the final column
+        // width — leaving blank space under the row until a scroll forces re-measurement.
+        .fixedSize(horizontal: false, vertical: true)
         .background(hovering ? CWStyle.hover : Color.clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(alignment: .trailing) {
             if hovering { hoverActions.padding(.trailing, 6) }
