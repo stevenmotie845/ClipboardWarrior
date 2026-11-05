@@ -171,12 +171,18 @@ enum Helpers {
 
 extension Date {
     /// yyyyMMdd_HHmmss, used in exported / autosaved file names. Safe to call from any thread.
+    /// DateFormatter is thread-safe after initial configuration; the static instance is created once.
     nonisolated var fileStamp: String {
+        Self._fileStampFormatter.string(from: self)
+    }
+
+    private static let _fileStampFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
         f.dateFormat = "yyyyMMdd_HHmmss"
-        return f.string(from: self)
-    }
+        return f
+    }()
 }
 
 extension NSImage {

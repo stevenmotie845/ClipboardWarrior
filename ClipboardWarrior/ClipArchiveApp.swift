@@ -65,8 +65,14 @@ struct ClipboardWarriorApp: App {
 
     /// Boards created with the old "Code" icon stored `code`, which is not a real SF Symbol and
     /// rendered blank. Point them at the correct symbol.
+    /// Short-circuits immediately when no board has a broken symbol, so typical launches pay
+    /// only the cost of the guard check rather than a full symbol-resolution pass.
     private static func repairBoardIcons(in context: ModelContext) {
         guard let boards = try? context.fetch(FetchDescriptor<ClipCategory>()) else { return }
+        guard boards.contains(where: {
+            $0.symbol == "code" ||
+            NSImage(systemSymbolName: $0.symbol, accessibilityDescription: nil) == nil
+        }) else { return }
         var changed = false
         for board in boards {
             let fixed = CWSymbol.resolved(board.symbol)

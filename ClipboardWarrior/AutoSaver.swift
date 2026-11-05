@@ -100,7 +100,8 @@ nonisolated enum AutoSaver {
         }
 
         var n = 1
-        while true {
+        let maxAttempts = 1_000
+        while n <= maxAttempts {
             let name = n == 1 ? "\(stem).\(ext)" : "\(stem)_\(n).\(ext)"
             let url = dir.appendingPathComponent(name)
             if !fm.fileExists(atPath: url.path) {
@@ -110,6 +111,12 @@ nonisolated enum AutoSaver {
             if (try? Data(contentsOf: url)) == payload { return }   // already saved
             n += 1
         }
+        throw NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileWriteUnknownError,
+            userInfo: [NSLocalizedDescriptionKey:
+                "Could not find a unique filename after \(maxAttempts) attempts: \(stem).\(ext)"]
+        )
     }
 
     /// True for "no permission" failures (sandbox or macOS Files & Folders privacy).

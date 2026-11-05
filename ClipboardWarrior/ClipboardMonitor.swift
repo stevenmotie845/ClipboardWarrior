@@ -13,8 +13,10 @@ final class ClipboardMonitor {
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var terminationObserver: NSObjectProtocol?
+    @ObservationIgnored private var ignoredAppsObserver: NSObjectProtocol?
     @ObservationIgnored private var lastChangeCount = -1   // -1 => capture whatever is on the clipboard at launch
     @ObservationIgnored private var tick = 0
+    @ObservationIgnored private var cachedIgnoredApps: Set<String> = []
 
     private static let maxTextBytes = 5_000_000
     private static let maxImageBytes = 25_000_000
@@ -51,6 +53,20 @@ final class ClipboardMonitor {
                 MainActor.assumeIsolated { self?.save() }
             }
         }
+
+        // Build the ignored-apps set once; refresh it whenever the preference changes so
+        // capture() doesn't re-parse the string on every clipboard event.
+        cachedIgnoredApps = Self.parseIgnoredApps()
+        if ignoredAppsObserver == nil {
+            ignoredAppsObserver = NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.cachedIgnoredApps = Self.parseIgnoredApps() }
+            }
+        }
+
         prune()
         timer?.invalidate()
         let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -88,10 +104,7 @@ final class ClipboardMonitor {
         let bundleID = front?.bundleIdentifier ?? ""
         let appName = front?.localizedName ?? ""
 
-        let ignored = (defaults.string(forKey: Pref.ignoredApps) ?? "")
-            .split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == " " })
-            .map(String.init)
-        if !bundleID.isEmpty, ignored.contains(bundleID) {
+        if !bundleID.isEmpty, cachedIgnoredApps.contains(bundleID) {
             lastNote = "Skipped a clip from \(appName)"
             return
         }
@@ -234,7 +247,14 @@ final class ClipboardMonitor {
         if defaults.bool(forKey: Pref.playSound) { NSSound(named: "Pop")?.play() }
 
         autosaveIfEnabled(kind: c.kind, text: c.text, imageFileName: imageName, createdAt: now)
-        prune()
+        // prune() is called every ~60 s from poll(); no need to call it on every new clip.
+    }
+
+    private static func parseIgnoredApps() -> Set<String> {
+        let raw = UserDefaults.standard.string(forKey: Pref.ignoredApps) ?? ""
+        return Set(raw.split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == " " })
+            .map(String.init)
+            .filter { !$0.isEmpty })
     }
 
     private func fetch(hash: String) -> ClipItem? {

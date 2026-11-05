@@ -199,13 +199,18 @@ nonisolated enum SecretScanner {
     }
 
     private static func looksLikePassword(_ t: String) -> Bool {
-        guard (8...40).contains(t.count),
+        // Raised minimum from 8 → 10 to cut false positives on short strings.
+        // Dots excluded: version strings, filenames, and domain names satisfy the char-class mix
+        // but are almost never passwords.
+        guard (10...40).contains(t.count),
               !t.contains(where: \.isWhitespace),
-              !t.contains("/") else { return false }
-        let lower = t.contains { $0.isLowercase }
-        let upper = t.contains { $0.isUppercase }
-        let digit = t.contains { $0.isNumber }
+              !t.contains("/"),
+              !t.contains(".") else { return false }
+        let lower  = t.contains { $0.isLowercase }
+        let upper  = t.contains { $0.isUppercase }
+        let digit  = t.contains { $0.isNumber }
         let symbol = t.contains { !$0.isLetter && !$0.isNumber }
+        // Require all four classes (was: any three). Cuts noise from slugs like "My-App_v12".
         return lower && upper && digit && symbol
     }
 }

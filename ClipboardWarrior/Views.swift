@@ -120,6 +120,9 @@ struct ClipListView: View {
     enum Style { case popover, archive }
 
     @Query private var clips: [ClipItem]
+    // Fetched once here and passed to every ClipRow, eliminating N live @Query instances
+    // (one per visible row) all fetching the same ClipCategory list.
+    @Query(sort: \ClipCategory.createdAt) private var categories: [ClipCategory]
 
     private let style: Style
     private let pinnedOnly: Bool
@@ -229,13 +232,13 @@ struct ClipListView: View {
     @ViewBuilder
     private func row(_ item: ClipItem) -> some View {
         if style == .popover {
-            ClipRow(item: item, showsCopyButton: false)
+            ClipRow(item: item, showsCopyButton: false, categories: categories)
                 .tag(item.persistentModelID)
                 .onTapGesture { onActivate(item) }
         } else {
             // Keep archive rows on the native single-click selection path. A second
             // competing tap gesture on List rows can swallow selection on macOS.
-            ClipRow(item: item, showsCopyButton: true)
+            ClipRow(item: item, showsCopyButton: true, categories: categories)
                 .tag(item.persistentModelID)
         }
     }
@@ -246,10 +249,11 @@ struct ClipListView: View {
 struct ClipRow: View {
     let item: ClipItem
     var showsCopyButton = false
+    /// Injected by ClipListView — avoids one live @Query per visible row all fetching the same data.
+    var categories: [ClipCategory] = []
 
     @Environment(ClipboardMonitor.self) private var monitor
     @Environment(\.modelContext) private var context
-    @Query(sort: \ClipCategory.createdAt) private var categories: [ClipCategory]
     @State private var hovering = false
 
     var body: some View {

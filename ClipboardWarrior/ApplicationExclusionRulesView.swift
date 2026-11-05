@@ -10,10 +10,13 @@ struct ApplicationExclusionRulesView: View {
     @State private var notice: String?
 
     private var rules: [String] {
-        Array(Set(ignoredApps
+        // Single-pass dedup: Set(..) destroys order and iterates twice; this doesn't.
+        var seen = Set<String>()
+        return ignoredApps
             .split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == " " })
             .map(String.init)
-            .filter { !$0.isEmpty })).sorted()
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+            .sorted()
     }
 
     var body: some View {
