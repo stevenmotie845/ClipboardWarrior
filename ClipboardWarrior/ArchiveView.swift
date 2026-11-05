@@ -156,7 +156,8 @@ struct ArchiveView: View {
                     Button("Open Autosave Folder") { AutoSaver.openFolder() }
                     Button("Save All Clips to Folder") { monitor.syncAllToFolder() }
                     Divider()
-                    Button("Export as Markdown…") { Exporter.exportMarkdown(context: context) }
+                    Button("Export Individual Clips…") { Exporter.exportIndividualMarkdown(context: context) }
+                    Button("Export Archive to Single Markdown…") { Exporter.exportMarkdown(context: context) }
                     Divider()
                     Button("Quick Paste…") {
                         DispatchQueue.main.async { QuickPasteController.shared.show() }

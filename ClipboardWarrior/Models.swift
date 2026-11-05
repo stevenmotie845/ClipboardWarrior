@@ -23,7 +23,7 @@ nonisolated enum ClipKind: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Folder name used under Desktop/ClipboardWarrior.
+    /// Folder name used under the selected ClipboardWarrior autosave root.
     var folderName: String {
         switch self {
         case .image: "Images"

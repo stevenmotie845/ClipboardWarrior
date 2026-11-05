@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - Menu bar popover
 //
 // Layout, top to bottom:
-//   Recently Copied title + Open Archive + actions menu
+//   Recently Copied title + actions menu
 //   search          directly under the title
 //   filters         Pinned · Categories · Boards
 //   clip list       takes all remaining height
@@ -93,7 +93,10 @@ struct MenuBarView: View {
             Button("Quick Paste…") {
                 DispatchQueue.main.async { QuickPasteController.shared.show() }
             }
-            Button("Export as Markdown…") { Exporter.exportMarkdown(context: context) }
+            Menu("Export") {
+                Button("Export Individual Clips…") { Exporter.exportIndividualMarkdown(context: context) }
+                Button("Export Archive to Single Markdown…") { Exporter.exportMarkdown(context: context) }
+            }
             Divider()
             Menu("Manage Clipboard History") {
                 Button("Clear Pinned Clips…", role: .destructive) {
@@ -141,21 +144,6 @@ struct MenuBarView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button(action: openArchive) {
-                HStack(spacing: 5) {
-                    Text("Open Archive")
-                    Image(systemName: "arrow.up.right")
-                }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(CWStyle.accent)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 6)
-                .background(CWStyle.accent.opacity(0.10), in: Capsule())
-                .overlay(Capsule().strokeBorder(CWStyle.accent.opacity(0.18), lineWidth: 0.8))
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .help("Open the full clipboard archive")
             actionsMenu
         }
         .padding(.horizontal, 18)

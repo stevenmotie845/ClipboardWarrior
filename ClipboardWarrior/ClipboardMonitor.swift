@@ -244,7 +244,7 @@ final class ClipboardMonitor {
         return try? context.fetch(d).first
     }
 
-    // MARK: - Autosave to Desktop/ClipboardWarrior
+    // MARK: - Autosave to the selected ClipboardWarrior folder
 
     /// Applies the autosave settings, then hands the clip to the background writer.
     private func autosaveIfEnabled(kind: ClipKind, text: String, imageFileName: String, createdAt: Date) {

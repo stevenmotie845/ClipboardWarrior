@@ -15,7 +15,6 @@ struct SettingsView: View {
     @AppStorage(Pref.respectConcealed) private var respectConcealed = true
     @AppStorage(Pref.captureImages) private var captureImages = true
     @AppStorage(Pref.playSound) private var playSound = false
-    @AppStorage(Pref.ignoredApps) private var ignoredApps = Pref.defaultIgnoredApps
     @AppStorage(Pref.globalHotKey) private var globalHotKey = true
     @AppStorage(Pref.hotKeyStyle) private var hotKeyStyle = "commandShiftV"
     @AppStorage(Pref.quickPasteHotKey) private var quickPasteHotKey = true
@@ -110,17 +109,21 @@ struct SettingsView: View {
                         Button("Choose…") { chooseFolder() }
                         Button("Show in Finder") { AutoSaver.openFolder() }
                         Button("Save existing clips now") { monitor.syncAllToFolder() }
+                            .disabled(!autosave)
                     }
                     Stepper("Skip clips shorter than \(autosaveMinChars) characters",
                             value: $autosaveMinChars, in: 1...500)
+                        .disabled(!autosave)
                     Toggle("Also save images (PNG)", isOn: $autosaveImages)
+                        .disabled(!autosave)
                     Toggle("Use real extensions (.py, .sh, .html) instead of .txt", isOn: $autosaveRealExt)
+                        .disabled(!autosave)
                 }
-                .disabled(!autosave)
 
-                Text("Saves to ~/ClipboardWarrior by default, or the folder you choose. Passwords and keys are never written to disk.")
+                Text("Saves to ~/ClipboardWarrior by default, or the folder you choose. You can change this destination at any time. Passwords and keys are never written to disk.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
 
             Section("History") {
                 Text("Clips stay in your history until you delete them. The archive comfortably handles 1,000 or more captures.")
@@ -145,13 +148,10 @@ struct SettingsView: View {
                     Stepper("Auto-delete after \(ttlHours) hour\(ttlHours == 1 ? "" : "s")",
                             value: $ttlHours, in: 1...720)
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Never capture from these apps (bundle IDs, one per line)")
-                        .font(.caption).foregroundStyle(.secondary)
-                    TextEditor(text: $ignoredApps)
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(height: 80)
-                }
+            }
+
+            Section("Application exclusions") {
+                ApplicationExclusionRulesView()
             }
 
             Section("Data") {
@@ -168,6 +168,8 @@ struct SettingsView: View {
             WindowActivation.activateAndRaiseKeyWindow()
             autoPasteAllowed = QuickPasteController.accessibilityGranted(prompt: false)
         }
+        .onChange(of: autosave) { _, _ in AppConfigurationStore.saveCurrentPreferences() }
+        .onChange(of: autosaveImages) { _, _ in AppConfigurationStore.saveCurrentPreferences() }
     }
 
     private func chooseFolder() {
@@ -183,6 +185,7 @@ struct SettingsView: View {
         // The bookmark only matters if the app is sandboxed; the path alone is enough otherwise.
         autosaveBookmark = (try? url.bookmarkData(options: [.withSecurityScope],
                                                   includingResourceValuesForKeys: nil, relativeTo: nil)) ?? Data()
+        AppConfigurationStore.saveCurrentPreferences()
     }
 }
 
@@ -190,50 +193,131 @@ struct SettingsView: View {
 
 @MainActor
 enum Exporter {
+    static func exportIndividualMarkdown(context: ModelContext) {
+        NSApp.activate()
+        let panel = NSOpenPanel()
+        panel.title = "Choose a folder for exported Markdown clips"
+        panel.prompt = "Export Here"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
 
-    /// One Markdown file. Sensitive clips are left out. Code fences grow so clips that
-    /// contain ``` can't break the document.
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let items = try context.fetch(FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt)]))
+            var exported = 0
+            var omitted = 0
+            for item in items {
+                guard !item.isSensitive else { omitted += 1; continue }
+                let filename = individualFilename(for: item)
+                let destination = folder.appendingPathComponent(filename, isDirectory: false)
+                let imageReference = try exportImageIfNeeded(for: item, into: folder, imageDirectoryName: "Images")
+                try markdown(for: item, imageReference: imageReference)
+                    .write(to: destination, atomically: true, encoding: .utf8)
+                exported += 1
+            }
+            let alert = NSAlert()
+            alert.messageText = "Markdown export complete"
+            alert.informativeText = "Exported \(exported) clip(s) to \(folder.path).\(omitted > 0 ? "\n\(omitted) sensitive clip(s) were omitted." : "")"
+            alert.runModal()
+            NSWorkspace.shared.activateFileViewerSelecting([folder])
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    /// Exports the full archive to one Markdown document. Sensitive clips are omitted.
     static func exportMarkdown(context: ModelContext) {
         NSApp.activate()
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "ClipboardWarrior-\(Date().fileStamp).md"
+        panel.nameFieldStringValue = "ClipboardWarrior-Archive-\(Date().fileStamp).md"
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let d = FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt)])
-        let items = (try? context.fetch(d)) ?? []
-        var out = "# Clipboard Warrior Export\n\nGenerated: \(Date().formatted())\n"
-        var omitted = 0
-
-        for kind in ClipKind.allCases {
-            let group = items.filter { $0.kind == kind && !$0.isSensitive }
-            omitted += items.filter { $0.kind == kind && $0.isSensitive }.count
-            guard !group.isEmpty else { continue }
-            out += "\n## \(kind.title)\n"
-            for item in group {
-                out += "\n### \(item.createdAt.formatted(date: .abbreviated, time: .shortened))"
-                out += item.sourceApp.isEmpty ? "\n" : " · \(item.sourceApp)\n"
-                if !item.tags.isEmpty { out += "Tags: `\(item.tags)`\n" }
-                switch kind {
-                case .image:
-                    out += "\n_Image omitted (\(item.preview))_\n"
-                case .files:
-                    out += "\n" + item.text.split(separator: "\n").map { "- `\($0)`" }.joined(separator: "\n") + "\n"
-                default:
-                    var fence = "```"
-                    while item.text.contains(fence) { fence += "`" }
-                    let lang = kind.isCode ? kind.fileExtension : ""
-                    out += "\n\(fence)\(lang)\n\(item.text)\n\(fence)\n"
+        do {
+            let items = try context.fetch(FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt)]))
+            let safeItems = items.filter { !$0.isSensitive }
+            let omitted = items.count - safeItems.count
+            var out = "# ClipboardWarrior Archive\n\nGenerated: \(Date().formatted())\n"
+            let imageFolderName = url.deletingPathExtension().lastPathComponent + "-Images"
+            for kind in ClipKind.allCases {
+                let group = safeItems.filter { $0.kind == kind }
+                guard !group.isEmpty else { continue }
+                out += "\n## \(kind.title)\n"
+                for item in group {
+                    let imageReference = try exportImageIfNeeded(
+                        for: item, into: url.deletingLastPathComponent(), imageDirectoryName: imageFolderName)
+                    out += "\n" + markdown(for: item, includeHeading: true, imageReference: imageReference) + "\n"
                 }
             }
-        }
-        if omitted > 0 { out += "\n---\n\(omitted) sensitive clip(s) omitted.\n" }
-
-        do {
+            if omitted > 0 { out += "\n---\n\(omitted) sensitive clip(s) omitted.\n" }
             try out.write(to: url, atomically: true, encoding: .utf8)
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {
             NSAlert(error: error).runModal()
         }
+    }
+
+    private static func markdown(for item: ClipItem, includeHeading: Bool = false,
+                                 imageReference: String? = nil) -> String {
+        var out = ""
+        if includeHeading {
+            out += "### \(item.createdAt.formatted(date: .abbreviated, time: .shortened))"
+            if !item.sourceApp.isEmpty { out += " · \(item.sourceApp)" }
+            out += "\n"
+        } else {
+            out += "# \(item.kind.title) Clip\n\n"
+            out += "- Captured: \(item.createdAt.formatted())\n"
+            if !item.sourceApp.isEmpty { out += "- Source app: \(item.sourceApp)\n" }
+            if !item.tags.isEmpty { out += "- Tags: \(item.tags)\n" }
+            out += "- Type: \(item.kind.title)\n\n"
+        }
+        if !item.tags.isEmpty, includeHeading { out += "Tags: `\(item.tags)`\n" }
+        switch item.kind {
+        case .image:
+            if let imageReference {
+                out += "\n![Clipboard image](\(imageReference))\n"
+                if !item.preview.isEmpty { out += "\n_\(item.preview)_\n" }
+            } else {
+                out += "\n_Image file isn't available (\(item.preview))._\n"
+            }
+        case .files:
+            out += "\n" + item.text.split(separator: "\n").map { "- `\($0)`" }.joined(separator: "\n") + "\n"
+        default:
+            var fence = "```"
+            while item.text.contains(fence) { fence += "`" }
+            let language = item.kind.isCode ? item.kind.fileExtension : ""
+            out += "\n\(fence)\(language)\n\(item.text)\n\(fence)\n"
+        }
+        return out
+    }
+
+    private static func exportImageIfNeeded(for item: ClipItem, into exportRoot: URL,
+                                            imageDirectoryName: String) throws -> String? {
+        guard item.kind == .image, !item.imageFileName.isEmpty else { return nil }
+        let source = ClipStore.imageURL(item.imageFileName)
+        guard FileManager.default.fileExists(atPath: source.path) else { return nil }
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        let imagesDirectory = exportRoot.appendingPathComponent(imageDirectoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)
+        let destinationName = item.contentHash + ".png"
+        let destination = imagesDirectory.appendingPathComponent(destinationName)
+        if !FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.copyItem(at: source, to: destination)
+        }
+        return "\(imageDirectoryName)/\(destinationName)"
+    }
+
+    private static func individualFilename(for item: ClipItem) -> String {
+        let date = item.createdAt.formatted(.iso8601)
+            .replacingOccurrences(of: ":", with: "-")
+        let preview = item.preview
+            .components(separatedBy: .newlines).joined(separator: " ")
+            .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        let shortPreview = String(preview.prefix(42))
+        let suffix = String(item.contentHash.prefix(8))
+        return "\(date)-\(item.kind.rawValue)-\(shortPreview.isEmpty ? "clip" : shortPreview)-\(suffix).md"
     }
 }

@@ -50,6 +50,12 @@ struct ClipboardWarriorApp: App {
             ClipCommands(monitor: monitor)
         }
 
+        Window("Welcome to ClipboardWarrior", id: "onboarding") {
+            OnboardingView()
+                .environment(monitor)
+                .modelContainer(container)
+        }
+
         Settings {
             SettingsView()
                 .environment(monitor)
@@ -93,6 +99,7 @@ struct ClipCommands: Commands {
 private struct MenuBarLabel: View {
     let monitor: ClipboardMonitor
     @Environment(\.openWindow) private var openWindow
+    @AppStorage(Pref.onboardingComplete) private var onboardingComplete = false
 
     var body: some View {
         Image(systemName: monitor.isPaused ? "pause.circle" : "doc.on.clipboard")
@@ -102,6 +109,15 @@ private struct MenuBarLabel: View {
                 openWindow(id: "archive")
                 DispatchQueue.main.async {
                     WindowActivation.bringWindowToFront(titled: "Clipboard Warrior")
+                }
+            }
+            .task {
+                guard !onboardingComplete else { return }
+                onboardingComplete = false
+                WindowActivation.activateApp()
+                openWindow(id: "onboarding")
+                DispatchQueue.main.async {
+                    WindowActivation.bringWindowToFront(titled: "Welcome to ClipboardWarrior")
                 }
             }
     }

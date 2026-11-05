@@ -23,6 +23,7 @@ nonisolated enum Pref {
     static let autosaveMinChars = "autosaveMinChars"
     static let autosaveImages = "autosaveImages"
     static let autosaveRealExt = "autosaveRealExt"
+    static let onboardingComplete = "onboardingComplete"
 
     static let defaultIgnoredApps = [
         "com.1password.1password",
@@ -54,10 +55,6 @@ nonisolated enum Pref {
            (storedFolder as NSString).standardizingPath == (oldDesktopDefault as NSString).standardizingPath {
             d.set(defaultAutosavePath, forKey: autosaveFolder)
             d.removeObject(forKey: autosaveBookmark)
-        } else if let storedFolder,
-                  storedFolder.contains("/Library/Containers/") || storedFolder.hasSuffix("Autosaved Clips") {
-            d.removeObject(forKey: autosaveFolder)
-            d.removeObject(forKey: autosaveBookmark)
         }
         UserDefaults.standard.register(defaults: [
             retentionDays: 0,                       // 0 = keep forever
@@ -76,6 +73,7 @@ nonisolated enum Pref {
             autosaveMinChars: 1,
             autosaveImages: false,
             autosaveRealExt: false,
+            onboardingComplete: false,
         ])
     }
 }

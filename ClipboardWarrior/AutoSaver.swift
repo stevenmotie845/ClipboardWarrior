@@ -32,7 +32,7 @@ nonisolated enum AutoSaver {
             // A bookmark adds sandbox permission for that folder. If it can't be used, keep the
             // bookmark and fall back to the plain path: it works when the app isn't sandboxed,
             // and otherwise fails with a clear "choose the folder again" note.
-            guard var bookmark = defaults.data(forKey: Pref.autosaveBookmark) else {
+            guard var bookmark = defaults.data(forKey: Pref.autosaveBookmark), !bookmark.isEmpty else {
                 return Config(root: pathURL, realExtensions: realExt, bookmarkData: nil)
             }
             do {
