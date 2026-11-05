@@ -336,4 +336,3 @@ struct MenuBarView: View {
         }
     }
 }
-
