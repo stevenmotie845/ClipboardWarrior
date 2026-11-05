@@ -162,6 +162,19 @@ final class QuickPasteController {
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Request macOS's permission prompt, then open the current Privacy & Security pane.
+    /// The grant itself must always be made by the user in System Settings.
+    static func requestAccessibilityAndOpenSettings() {
+        _ = accessibilityGranted(prompt: true)
+        let candidates = [
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility",
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        ]
+        for candidate in candidates {
+            if let url = URL(string: candidate), NSWorkspace.shared.open(url) { return }
+        }
+    }
+
     private static func sendPasteKeystroke() {
         let source = CGEventSource(stateID: .combinedSessionState)
         let key = CGKeyCode(kVK_ANSI_V)
@@ -260,6 +273,11 @@ struct QuickPasteView: View {
         .task {
             try? await Task.sleep(for: .milliseconds(60))
             searchFocused = true
+
+            while !Task.isCancelled {
+                canAutoPaste = QuickPasteController.accessibilityGranted(prompt: false)
+                try? await Task.sleep(for: .seconds(1.5))
+            }
         }
     }
 

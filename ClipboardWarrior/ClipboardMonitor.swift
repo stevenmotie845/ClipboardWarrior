@@ -14,14 +14,17 @@ final class ClipboardMonitor {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var terminationObserver: NSObjectProtocol?
     @ObservationIgnored private var ignoredAppsObserver: NSObjectProtocol?
-    @ObservationIgnored private var lastChangeCount = -1   // -1 => capture whatever is on the clipboard at launch
+    @ObservationIgnored private var lastChangeCount = -1
     @ObservationIgnored private var tick = 0
     @ObservationIgnored private var cachedIgnoredApps: Set<String> = []
 
-    private static let maxTextBytes = 5_000_000
+    // Image payloads are removed only after SwiftData confirms the corresponding
+    // record deletion. If a save fails, the old record and its image remain recoverable.
+    @ObservationIgnored private var pendingImageDeletes: Set<String> = []
+
+    private static let maxTextBytes  = 5_000_000
     private static let maxImageBytes = 25_000_000
 
-    /// nspasteboard.org conventions used by password managers and system utilities.
     private static let privateTypes: Set<NSPasteboard.PasteboardType> = [
         NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"),
         NSPasteboard.PasteboardType("org.nspasteboard.TransientType"),
@@ -42,26 +45,20 @@ final class ClipboardMonitor {
     // MARK: - Lifecycle
 
     func start() {
-        // SwiftData is saved after every mutation, but flush once more on a normal quit so
-        // any pending context changes are committed before the process exits.
         if terminationObserver == nil {
             terminationObserver = NotificationCenter.default.addObserver(
                 forName: NSApplication.willTerminateNotification,
-                object: nil,
-                queue: .main
+                object: nil, queue: .main
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.save() }
             }
         }
 
-        // Build the ignored-apps set once; refresh it whenever the preference changes so
-        // capture() doesn't re-parse the string on every clipboard event.
         cachedIgnoredApps = Self.parseIgnoredApps()
         if ignoredAppsObserver == nil {
             ignoredAppsObserver = NotificationCenter.default.addObserver(
                 forName: UserDefaults.didChangeNotification,
-                object: nil,
-                queue: .main
+                object: nil, queue: .main
             ) { [weak self] _ in
                 MainActor.assumeIsolated { self?.cachedIgnoredApps = Self.parseIgnoredApps() }
             }
@@ -79,10 +76,10 @@ final class ClipboardMonitor {
 
     private func poll() {
         tick += 1
-        if tick % 120 == 0 { prune() }     // roughly once a minute
+        if tick % 120 == 0 { prune() }
 
-        let pb = NSPasteboard.general
-        let count = pb.changeCount          // cheap: no content is read unless it changed
+        let pb    = NSPasteboard.general
+        let count = pb.changeCount
         guard count != lastChangeCount else { return }
         lastChangeCount = count
         guard !isPaused else { return }
@@ -100,9 +97,9 @@ final class ClipboardMonitor {
             return
         }
 
-        let front = NSWorkspace.shared.frontmostApplication
+        let front    = NSWorkspace.shared.frontmostApplication
         let bundleID = front?.bundleIdentifier ?? ""
-        let appName = front?.localizedName ?? ""
+        let appName  = front?.localizedName ?? ""
 
         if !bundleID.isEmpty, cachedIgnoredApps.contains(bundleID) {
             lastNote = "Skipped a clip from \(appName)"
@@ -114,36 +111,29 @@ final class ClipboardMonitor {
     }
 
     private func readCandidate(from pb: NSPasteboard) -> Candidate? {
-        // 1. Files copied in Finder
         if let urls = pb.readObjects(forClasses: [NSURL.self],
                                      options: [.urlReadingFileURLsOnly: true]) as? [URL],
            !urls.isEmpty {
             let paths = urls.map(\.path).joined(separator: "\n")
-            return Candidate(kind: .files, text: paths, imageData: nil, hashData: Data(("files:" + paths).utf8))
+            return Candidate(kind: .files, text: paths, imageData: nil,
+                             hashData: Data(("files:" + paths).utf8))
         }
 
-        // 2. Text. Most apps publish plain text, but some rich-copy actions (including
-        // ChatGPT's formatted response copy) publish HTML/RTF first or only. Ask AppKit to
-        // decode those representations instead of silently dropping the clipboard change.
         if let s = Self.readText(from: pb),
            !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard s.utf8.count <= Self.maxTextBytes else {
-                lastNote = "Skipped a clip over 5 MB"
-                return nil
+                lastNote = "Skipped a clip over 5 MB"; return nil
             }
-            // Hash ignores trailing whitespace so "foo" and "foo\n" dedupe.
             let normalized = s.trimmingCharacters(in: .whitespacesAndNewlines)
             return Candidate(kind: ContentDetector.detect(s), text: s, imageData: nil,
                              hashData: Data(normalized.utf8))
         }
 
-        // 3. Images
         if UserDefaults.standard.bool(forKey: Pref.captureImages),
            let image = NSImage(pasteboard: pb),
            let png = image.pngData() {
             guard png.count <= Self.maxImageBytes else {
-                lastNote = "Skipped an image over 25 MB"
-                return nil
+                lastNote = "Skipped an image over 25 MB"; return nil
             }
             return Candidate(kind: .image, text: "", imageData: png, hashData: png)
         }
@@ -151,10 +141,7 @@ final class ClipboardMonitor {
     }
 
     private static func readText(from pasteboard: NSPasteboard) -> String? {
-        if let text = pasteboard.string(forType: .string), !text.isEmpty {
-            return text
-        }
-
+        if let text = pasteboard.string(forType: .string), !text.isEmpty { return text }
         let richTextTypes: [NSPasteboard.PasteboardType] = [
             NSPasteboard.PasteboardType("public.html"),
             NSPasteboard.PasteboardType("public.rtf"),
@@ -168,10 +155,11 @@ final class ClipboardMonitor {
             case "public.rtfd": docType = .rtfd
             default:            docType = .rtf
             }
-            let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
-                .documentType: docType
-            ]
-            if let decoded = try? NSAttributedString(data: data, options: options, documentAttributes: nil) {
+            if let decoded = try? NSAttributedString(
+                data: data,
+                options: [.documentType: docType],
+                documentAttributes: nil
+            ) {
                 let text = decoded.string
                 if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return text }
             }
@@ -181,25 +169,20 @@ final class ClipboardMonitor {
 
     private func ingest(_ c: Candidate, appName: String, bundleID: String) {
         let hash = Helpers.sha256Hex(c.hashData)
-        let now = Date()
+        let now  = Date()
 
-        // Duplicate: bump it to the top instead of ignoring it.
         if let existing = fetch(hash: hash) {
             existing.lastCopiedAt = now
-            existing.useCount += 1
-            sessionDuplicates += 1
+            existing.useCount    += 1
+            sessionDuplicates    += 1
             save()
-            // Re-copying a clip that's already in history: make sure its file exists in the
-            // autosave folder. Uses the stored clip's own text and created date, so it maps to the
-            // same file name and content: an existing file is kept, a missing one is recreated,
-            // and a second copy is never made.
             autosaveIfEnabled(kind: existing.kind, text: existing.text,
                               imageFileName: existing.imageFileName, createdAt: existing.createdAt)
             return
         }
 
-        let defaults = UserDefaults.standard
-        let mode = SensitiveMode(rawValue: defaults.string(forKey: Pref.sensitiveMode) ?? "") ?? .keepMasked
+        let defaults  = UserDefaults.standard
+        let mode      = SensitiveMode(rawValue: defaults.string(forKey: Pref.sensitiveMode) ?? "") ?? .keepMasked
         let isTextual = c.kind != .image && c.kind != .files
         let reason: String? = isTextual ? SecretScanner.scan(c.text) : nil
 
@@ -209,9 +192,11 @@ final class ClipboardMonitor {
         }
 
         let flagged = reason != nil && mode != .saveNormally
-        let ttlHours = max(defaults.integer(forKey: Pref.sensitiveTTLHours), 1)
-        let expires: Date? = (flagged && mode == .maskAndExpire)
-            ? now.addingTimeInterval(Double(ttlHours) * 3600) : nil
+
+        // Sensitive clips are masked according to the selected mode, but are
+        // never given a separate hidden expiry. The user's History retention
+        // setting is the sole automatic deletion schedule.
+        let expires: Date? = nil
 
         var imageName = ""
         if let data = c.imageData {
@@ -226,35 +211,33 @@ final class ClipboardMonitor {
 
         let size = c.imageData?.count ?? c.text.utf8.count
         let item = ClipItem(
-            contentHash: hash,
-            kind: c.kind,
-            text: c.text,
-            preview: flagged ? "Sensitive · \(reason ?? "")" : Helpers.preview(text: c.text, kind: c.kind, byteSize: size),
-            tags: flagged ? "" : Helpers.tags(in: c.text, kind: c.kind),
-            sourceApp: appName,
-            sourceBundleID: bundleID,
-            isSensitive: flagged,
+            contentHash:     hash,
+            kind:            c.kind,
+            text:            c.text,
+            preview:         flagged ? "Sensitive · \(reason ?? "")"
+                                     : Helpers.preview(text: c.text, kind: c.kind, byteSize: size),
+            tags:            flagged ? "" : Helpers.tags(in: c.text, kind: c.kind),
+            sourceApp:       appName,
+            sourceBundleID:  bundleID,
+            isSensitive:     flagged,
             sensitiveReason: flagged ? (reason ?? "") : "",
-            expiresAt: expires,
-            imageFileName: imageName,
-            byteSize: size
+            expiresAt:       expires,
+            imageFileName:   imageName,
+            byteSize:        size
         )
         context.insert(item)
         save()
 
         sessionSaved += 1
-        lastNote = nil
+        lastNote      = nil
         if defaults.bool(forKey: Pref.playSound) { NSSound(named: "Pop")?.play() }
-
         autosaveIfEnabled(kind: c.kind, text: c.text, imageFileName: imageName, createdAt: now)
-        // prune() is called every ~60 s from poll(); no need to call it on every new clip.
     }
 
     private static func parseIgnoredApps() -> Set<String> {
         let raw = UserDefaults.standard.string(forKey: Pref.ignoredApps) ?? ""
         return Set(raw.split(whereSeparator: { $0 == "\n" || $0 == "," || $0 == " " })
-            .map(String.init)
-            .filter { !$0.isEmpty })
+            .map(String.init).filter { !$0.isEmpty })
     }
 
     private func fetch(hash: String) -> ClipItem? {
@@ -264,9 +247,8 @@ final class ClipboardMonitor {
         return try? context.fetch(d).first
     }
 
-    // MARK: - Autosave to the selected ClipboardWarrior folder
+    // MARK: - Autosave
 
-    /// Applies the autosave settings, then hands the clip to the background writer.
     private func autosaveIfEnabled(kind: ClipKind, text: String, imageFileName: String, createdAt: Date) {
         let d = UserDefaults.standard
         guard d.bool(forKey: Pref.autosave),
@@ -275,189 +257,146 @@ final class ClipboardMonitor {
         autosave(AutoSaver.Job(kind: kind, text: text, imageFileName: imageFileName, createdAt: createdAt))
     }
 
-    /// Background write. The secret scan inside `isWorthSaving` means credentials never reach the
-    /// disk, even when the in-app mode is "Save like any other clip".
     private func autosave(_ job: AutoSaver.Job) {
-        let config = AutoSaver.Config.current()
+        let config   = AutoSaver.Config.current()
         let minChars = max(UserDefaults.standard.integer(forKey: Pref.autosaveMinChars), 1)
         Task.detached(priority: .utility) { [weak self] in
             guard AutoSaver.isWorthSaving(job, minChars: minChars) else { return }
-            do {
-                try AutoSaver.write(job, config: config)
-            } catch {
-                await self?.report(AutoSaver.failureNote(error))
-            }
+            do { try AutoSaver.write(job, config: config) }
+            catch { await self?.report(AutoSaver.failureNote(error)) }
         }
     }
 
-    private func report(_ note: String) {
-        lastNote = note
-    }
-
-    /// Shows a short status message in the menu bar popover footer.
-    func postNote(_ note: String) {
-        lastNote = note
-    }
+    private func report(_ note: String) { lastNote = note }
+    func postNote(_ note: String)        { lastNote = note }
 
     private func finishSync(written: Int, failure: String?) {
         lastNote = failure ?? "Saved \(written) clips to folder"
         if failure == nil { AutoSaver.openFolder() }
     }
 
-    /// Writes every stored clip to the autosave folder (already-saved clips are skipped).
     func syncAllToFolder() {
-        let defaults = UserDefaults.standard
-        let config = AutoSaver.Config.current()
-        let minChars = max(defaults.integer(forKey: Pref.autosaveMinChars), 1)
+        let defaults   = UserDefaults.standard
+        let config     = AutoSaver.Config.current()
+        let minChars   = max(defaults.integer(forKey: Pref.autosaveMinChars), 1)
         let withImages = defaults.bool(forKey: Pref.autosaveImages)
-
-        let d = FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt)])
-        guard let items = try? context.fetch(d) else { return }
+        guard let items = try? context.fetch(FetchDescriptor<ClipItem>(sortBy: [SortDescriptor(\.createdAt)])) else { return }
         let jobs = items.compactMap { item -> AutoSaver.Job? in
             guard !item.isSensitive, item.kind != .files, item.kind != .image || withImages else { return nil }
             return AutoSaver.Job(kind: item.kind, text: item.text,
                                  imageFileName: item.imageFileName, createdAt: item.createdAt)
         }
-
         lastNote = "Saving \(jobs.count) clips…"
         Task.detached(priority: .utility) { [weak self] in
-            var written = 0
-            var failure: String?
+            var written = 0; var failure: String?
             for job in jobs where AutoSaver.isWorthSaving(job, minChars: minChars) {
-                do {
-                    try AutoSaver.write(job, config: config)
-                    written += 1
-                } catch {
-                    failure = AutoSaver.failureNote(error)
-                    break
-                }
+                do { try AutoSaver.write(job, config: config); written += 1 }
+                catch { failure = AutoSaver.failureNote(error); break }
             }
             await self?.finishSync(written: written, failure: failure)
         }
     }
 
-    // MARK: - Actions used by the UI
+    // MARK: - Actions
 
-    /// Put a clip back on the clipboard.
     func copyBack(_ item: ClipItem) {
         let pb = NSPasteboard.general
         pb.clearContents()
         switch item.kind {
         case .image:
-            if let image = NSImage(contentsOf: ClipStore.imageURL(item.imageFileName)) {
-                pb.writeObjects([image])
-            }
+            if let image = NSImage(contentsOf: ClipStore.imageURL(item.imageFileName)) { pb.writeObjects([image]) }
         case .files:
             let urls = item.text.split(separator: "\n").map { URL(fileURLWithPath: String($0)) as NSURL }
             pb.writeObjects(urls)
         default:
             pb.setString(item.text, forType: .string)
         }
-        // Don't re-capture our own write.
-        lastChangeCount = pb.changeCount
+        lastChangeCount   = pb.changeCount
         item.lastCopiedAt = Date()
-        item.useCount += 1
+        item.useCount    += 1
         save()
     }
 
     func togglePin(_ item: ClipItem) {
         item.isPinned.toggle()
-        if item.isPinned { item.expiresAt = nil }   // pinned = keep
+        if item.isPinned { item.expiresAt = nil }
         save()
     }
 
-    func delete(_ item: ClipItem) {
-        remove(item)
-        save()
-    }
-
+    func delete(_ item: ClipItem)      { remove(item); save() }
     func deleteAllUnpinned() {
-        let d = FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { !$0.isPinned })
-        guard let items = try? context.fetch(d) else { return }
-        items.forEach(remove)
-        save()
+        guard let items = try? context.fetch(
+            FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { !$0.isPinned })) else { return }
+        items.forEach(remove); save()
     }
-
-    /// Permanently removes every clipboard item, including pinned clips, and associated image payloads.
     func deleteAllClips() {
-        let descriptor = FetchDescriptor<ClipItem>()
-        guard let items = try? context.fetch(descriptor) else { return }
-        items.forEach(remove)
-        save()
-        lastNote = "Clipboard history cleared"
+        guard let items = try? context.fetch(FetchDescriptor<ClipItem>()) else { return }
+        items.forEach(remove); save(); lastNote = "Clipboard history cleared"
     }
-
-    /// Removes every pinned clip without affecting unpinned history.
     func deleteAllPinned() {
-        let descriptor = FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isPinned })
-        guard let items = try? context.fetch(descriptor) else { return }
-        items.forEach(remove)
-        save()
-        lastNote = "Pinned clips cleared"
+        guard let items = try? context.fetch(
+            FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isPinned })) else { return }
+        items.forEach(remove); save(); lastNote = "Pinned clips cleared"
     }
-
-    /// Removes every clip flagged as sensitive, pinned or not.
     func deleteAllSensitive() {
-        let d = FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isSensitive })
-        guard let items = try? context.fetch(d) else { return }
-        items.forEach(remove)
-        save()
+        guard let items = try? context.fetch(
+            FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isSensitive })) else { return }
+        items.forEach(remove); save()
     }
 
     // MARK: - Retention
 
     func prune() {
-        let defaults = UserDefaults.standard
-        let days = defaults.integer(forKey: Pref.retentionDays)
-        let now = Date()
-        let cutoff: Date? = days > 0 ? now.addingTimeInterval(-Double(days) * 86_400) : nil
+        let days = UserDefaults.standard.integer(forKey: Pref.retentionDays)
+        let now  = Date()
+
+        // Never means exactly that: no background expiry, including clips from older
+        // builds that carried an independent expiresAt value.
+        guard days > 0 else { return }
 
         let d = FetchDescriptor<ClipItem>(
             predicate: #Predicate<ClipItem> { !$0.isPinned },
             sortBy: [SortDescriptor(\.lastCopiedAt, order: .reverse)]
         )
-        guard let items = try? context.fetch(d) else { return }
+        guard let items = try? context.fetch(d) else {
+            lastNote = "History check failed; no clips were deleted."
+            return
+        }
 
         var removed = false
-        for item in items {
-            let expired = item.expiresAt.map { $0 < now } ?? false
-            let tooOld = (cutoff.map { item.lastCopiedAt < $0 } ?? false)
-            if expired || tooOld {
-                remove(item)
-                removed = true
-            }
+        for item in items where RetentionPolicy.shouldDelete(
+            lastCopiedAt: item.lastCopiedAt, isPinned: item.isPinned,
+            retentionDays: days, now: now) {
+            remove(item); removed = true
         }
         if removed { save() }
     }
 
     private func remove(_ item: ClipItem) {
-        if !item.imageFileName.isEmpty {
-            try? FileManager.default.removeItem(at: ClipStore.imageURL(item.imageFileName))
-        }
+        if !item.imageFileName.isEmpty { pendingImageDeletes.insert(item.imageFileName) }
         context.delete(item)
     }
 
-    /// Explicit persistence checkpoint used after mutations and during normal app shutdown.
-    func flush() {
-        save()
-    }
+    func flush() { save() }
 
     private func save() {
         do {
             if context.hasChanges { try context.save() }
+            for name in pendingImageDeletes {
+                try? FileManager.default.removeItem(at: ClipStore.imageURL(name))
+            }
+            pendingImageDeletes.removeAll()
         } catch {
-            lastNote = "Save failed: \(error.localizedDescription)"
+            lastNote = "Save failed — your previous history remains on disk: \(error.localizedDescription)"
         }
     }
 }
 
-
 // MARK: - Confirmed bulk deletion
 
 extension ClipboardMonitor {
-    /// Total and pinned clip counts, used to make confirmation prompts specific.
     func clipCounts() -> (total: Int, pinned: Int) {
-        let total = (try? context.fetchCount(FetchDescriptor<ClipItem>())) ?? 0
+        let total  = (try? context.fetchCount(FetchDescriptor<ClipItem>())) ?? 0
         let pinned = (try? context.fetchCount(
             FetchDescriptor<ClipItem>(predicate: #Predicate<ClipItem> { $0.isPinned }))) ?? 0
         return (total, pinned)
@@ -465,51 +404,32 @@ extension ClipboardMonitor {
 
     private static func plural(_ count: Int) -> String { count == 1 ? "1 clip" : "\(count) clips" }
 
-    /// Asks first, then deletes every clip, pinned ones included.
     func confirmDeleteAllClips(then completion: (() -> Void)? = nil) {
         let counts = clipCounts()
-        guard counts.total > 0 else {
-            lastNote = "There are no clips to delete"
-            return
-        }
+        guard counts.total > 0 else { lastNote = "There are no clips to delete"; return }
         let pinnedLine = counts.pinned > 0 ? " This includes \(Self.plural(counts.pinned)) you pinned." : ""
         Confirm.destructive(
             title: "Delete all \(Self.plural(counts.total))?",
-            message: "Every clip in your library will be permanently deleted, along with saved image data.\(pinnedLine) Files already autosaved to your folder are not touched. This can’t be undone.",
+            message: "Every clip in your library will be permanently deleted, along with saved image data.\(pinnedLine) Files already autosaved to your folder are not touched. This can't be undone.",
             actionTitle: "Delete All Clips"
-        ) { [weak self] in
-            self?.deleteAllClips()
-            completion?()
-        }
+        ) { [weak self] in self?.deleteAllClips(); completion?() }
     }
 
-    /// Asks first, then deletes only the pinned clips.
     func confirmDeletePinnedClips(then completion: (() -> Void)? = nil) {
         let counts = clipCounts()
-        guard counts.pinned > 0 else {
-            lastNote = "There are no pinned clips"
-            return
-        }
+        guard counts.pinned > 0 else { lastNote = "There are no pinned clips"; return }
         Confirm.destructive(
             title: "Delete \(Self.plural(counts.pinned)) you pinned?",
-            message: "Only pinned clips are deleted. The rest of your history and any autosaved files stay as they are. This can’t be undone.",
+            message: "Only pinned clips are deleted. The rest of your history and any autosaved files stay as they are. This can't be undone.",
             actionTitle: "Delete Pinned Clips"
-        ) { [weak self] in
-            self?.deleteAllPinned()
-            completion?()
-        }
+        ) { [weak self] in self?.deleteAllPinned(); completion?() }
     }
 
-    /// Asks first, then deletes every clip flagged as sensitive.
     func confirmDeleteSensitiveClips(then completion: (() -> Void)? = nil) {
         Confirm.destructive(
             title: "Delete all sensitive clips?",
-            message: "Clips flagged as passwords, keys or card numbers are deleted, pinned ones too. This can’t be undone.",
+            message: "Clips flagged as passwords, keys or card numbers are deleted, pinned ones too. This can't be undone.",
             actionTitle: "Delete Sensitive Clips"
-        ) { [weak self] in
-            self?.deleteAllSensitive()
-            self?.postNote("Sensitive clips deleted")
-            completion?()
-        }
+        ) { [weak self] in self?.deleteAllSensitive(); self?.postNote("Sensitive clips deleted"); completion?() }
     }
 }

@@ -11,15 +11,15 @@ nonisolated enum ClipKind: String, CaseIterable, Identifiable {
     /// Label shown in the colored tag.
     var title: String {
         switch self {
-        case .text: "General Text"
-        case .url: "URL"
-        case .json: "JSON"
-        case .html: "HTML"
+        case .text:   "Text"
+        case .url:    "URL"
+        case .json:   "JSON"
+        case .html:   "HTML"
         case .python: "Python"
-        case .swift: "Swift"
-        case .shell: "Bash"
-        case .image: "Image"
-        case .files: "Files"
+        case .swift:  "Swift"
+        case .shell:  "Bash"
+        case .image:  "Image"
+        case .files:  "Files"
         }
     }
 
@@ -27,40 +27,40 @@ nonisolated enum ClipKind: String, CaseIterable, Identifiable {
     var folderName: String {
         switch self {
         case .image: "Images"
-        default: title
+        default:     title
         }
     }
 
     var symbol: String {
         switch self {
-        case .text: "text.alignleft"
-        case .url: "link"
-        case .json: "curlybraces"
-        case .html: "globe"
+        case .text:   "text.alignleft"
+        case .url:    "link"
+        case .json:   "curlybraces"
+        case .html:   "globe"
         case .python: "chevron.left.forwardslash.chevron.right"
-        case .swift: "swift"
-        case .shell: "terminal"
-        case .image: "photo"
-        case .files: "doc.on.doc"
+        case .swift:  "swift"
+        case .shell:  "terminal"
+        case .image:  "photo"
+        case .files:  "doc.on.doc"
         }
     }
 
     var fileExtension: String {
         switch self {
         case .text, .url, .files: "txt"
-        case .json: "json"
-        case .html: "html"
-        case .python: "py"
-        case .swift: "swift"
-        case .shell: "sh"
-        case .image: "png"
+        case .json:               "json"
+        case .html:               "html"
+        case .python:             "py"
+        case .swift:              "swift"
+        case .shell:              "sh"
+        case .image:              "png"
         }
     }
 
     var isCode: Bool {
         switch self {
         case .json, .html, .python, .swift, .shell: true
-        default: false
+        default:                                     false
         }
     }
 }
@@ -69,7 +69,7 @@ nonisolated enum ClipKind: String, CaseIterable, Identifiable {
 final class ClipItem {
     @Attribute(.unique) var contentHash: String
     var kindRaw: String
-    var text: String                // text, or newline-separated paths for .files, empty for images
+    var text: String
     var preview: String
     var tags: String
     var sourceApp: String
@@ -101,28 +101,27 @@ final class ClipItem {
         customCategory: ClipCategory? = nil
     ) {
         let now = Date()
-        self.contentHash = contentHash
-        self.kindRaw = kind.rawValue
-        self.text = text
-        self.preview = preview
-        self.tags = tags
-        self.sourceApp = sourceApp
-        self.sourceBundleID = sourceBundleID
-        self.createdAt = now
-        self.lastCopiedAt = now
-        self.useCount = 1
-        self.isPinned = false
-        self.isSensitive = isSensitive
+        self.contentHash     = contentHash
+        self.kindRaw         = kind.rawValue
+        self.text            = text
+        self.preview         = preview
+        self.tags            = tags
+        self.sourceApp       = sourceApp
+        self.sourceBundleID  = sourceBundleID
+        self.createdAt       = now
+        self.lastCopiedAt    = now
+        self.useCount        = 1
+        self.isPinned        = false
+        self.isSensitive     = isSensitive
         self.sensitiveReason = sensitiveReason
-        self.expiresAt = expiresAt
-        self.imageFileName = imageFileName
-        self.byteSize = byteSize
-        self.customCategory = customCategory
+        self.expiresAt       = expiresAt
+        self.imageFileName   = imageFileName
+        self.byteSize        = byteSize
+        self.customCategory  = customCategory
     }
 
     var kind: ClipKind { ClipKind(rawValue: kindRaw) ?? .text }
 }
-
 
 @Model
 final class ClipCategory {
@@ -135,9 +134,9 @@ final class ClipCategory {
     var clips: [ClipItem]?
 
     init(name: String, symbol: String = "folder", colorHex: String = "007AFF") {
-        self.name = name
-        self.symbol = symbol
-        self.colorHex = colorHex
+        self.name      = name
+        self.symbol    = symbol
+        self.colorHex  = colorHex
         self.createdAt = Date()
     }
 }

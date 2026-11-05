@@ -20,7 +20,7 @@ extension ClipKind {
     }
 }
 
-/// Colored capsule: "HTML", "URL", "General Text", "Python", "Bash"...
+/// Colored capsule: "HTML", "URL", "Text", "Python", "Bash"...
 struct KindBadge: View {
     let kind: ClipKind
 

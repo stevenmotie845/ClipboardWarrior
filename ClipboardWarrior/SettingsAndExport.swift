@@ -12,7 +12,6 @@ struct SettingsView: View {
 
     @AppStorage(Pref.retentionDays) private var retentionDays = 0
     @AppStorage(Pref.sensitiveMode) private var sensitiveMode = SensitiveMode.keepMasked.rawValue
-    @AppStorage(Pref.sensitiveTTLHours) private var ttlHours = 24
     @AppStorage(Pref.respectConcealed) private var respectConcealed = true
     @AppStorage(Pref.captureImages) private var captureImages = true
     @AppStorage(Pref.playSound) private var playSound = false
@@ -134,7 +133,7 @@ struct SettingsView: View {
 
 
             Section("History") {
-                Text("Clips stay in your history until you delete them. The archive comfortably handles 1,000 or more captures.")
+                Text("History is stored locally and saved as clips arrive. Choose when unpinned clips should expire; Never keeps them until you delete them.")
                     .font(.caption).foregroundStyle(.secondary)
                 Picker("Delete unpinned clips after", selection: $retentionDays) {
                     Text("Never").tag(0)
@@ -143,7 +142,7 @@ struct SettingsView: View {
                     Text("30 days").tag(30)
                     Text("90 days").tag(90)
                 }
-                Text("Pinned clips are never deleted automatically. Autosaved files are never deleted by the app.")
+                Text("Age is measured from the last time a clip was copied. Pinned clips are never deleted automatically, and Autosaver files are never removed by history cleanup.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -152,9 +151,6 @@ struct SettingsView: View {
                 Picker("When a clip looks sensitive", selection: $sensitiveMode) {
                     ForEach(SensitiveMode.allCases) { Text($0.title).tag($0.rawValue) }
                 }
-                if sensitiveMode == SensitiveMode.maskAndExpire.rawValue {
-                    Stepper("Auto-delete after \(ttlHours) hour\(ttlHours == 1 ? "" : "s")",
-                            value: $ttlHours, in: 1...720)
                 }
             }
 
@@ -195,6 +191,14 @@ struct SettingsView: View {
         }
         .onChange(of: autosave) { _, _ in AppConfigurationStore.saveCurrentPreferences() }
         .onChange(of: autosaveImages) { _, _ in AppConfigurationStore.saveCurrentPreferences() }
+    .task {
+        // TCC changes can be granted while System Settings is open.
+        // Refresh instead of leaving a stale indicator on screen.
+        while !Task.isCancelled {
+            autoPasteAllowed = QuickPasteController.accessibilityGranted(prompt: false)
+            try? await Task.sleep(for: .seconds(1.5))
+        }
+    }
     }
 
     private func chooseFolder() {
