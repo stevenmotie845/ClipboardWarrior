@@ -31,7 +31,6 @@ Every clip receives a color-coded tag powered by a weighted scoring engine to ac
 | :--- | :--- |
 | **General Text** | Plain text, notes, and uncategorized snippets |
 | **URL** | Web addresses and links |
-| **JSON** | Valid JSON objects and arrays |
 | **HTML** | Full web pages and HTML snippets |
 | **Python** | Python scripts, snippets, and shebang files |
 | **Swift** | Swift and SwiftUI code |
@@ -44,8 +43,8 @@ Every clip receives a color-coded tag powered by a weighted scoring engine to ac
 ### 📂 Desktop Folder Autosave
 
 - **Real-Time File Sync:** Automatically saves clips into an autosave folder on your Desktop (`Desktop/ClipboardWarrior`).
-- **Categorized Subfolders:** Creates dedicated subfolders for each category (`Python`, `Swift`, `Bash`, `JSON`, `HTML`, `Images`, `URLs`, `General Text`).
-- **Real Extensions:** Save snippets as actual code files (`.py`, `.swift`, `.sh`, `.html`, `.json`) or default to `.txt`.
+- **Categorized Subfolders:** Creates dedicated subfolders for each category (`Python`, `Swift`, `Bash`, `HTML`, `Images`, `URLs`, `General Text`).
+- **Real Extensions:** Save snippets as actual code files (`.py`, `.swift`, `.sh`, `.html`) or default to `.txt`.
 - **Zero Duplicates:** Re-copying an existing clip updates its timestamp without creating duplicate clutter.
 - **Backfill Option:** Easily backfill your entire stored history into your desktop folder at any time.
 
@@ -81,14 +80,6 @@ Every clip receives a color-coded tag powered by a weighted scoring engine to ac
    - Grant **Desktop Folder access** when macOS prompts you so the app can create and manage `Desktop/ClipboardWarrior`.
 
 > 💡 **Tip:** If Desktop access is accidentally denied, go to **System Settings > Privacy & Security > Files & Folders** and enable **Desktop Folder** for ClipboardWarrior.
-
----
-
-## 🛠️ Upgrading from the Python Version
-
-- **Swift Architecture:** Replaces the legacy `clip_archive.py` script with a full SwiftUI interface and a SwiftData database.
-- **Folder Alignment:** Retains the familiar category-per-folder structure on your Desktop.
-- **Improved File Safety:** Resolved legacy file-collision issues so rapidly saved clips never overwrite one another.
 
 ---
 
