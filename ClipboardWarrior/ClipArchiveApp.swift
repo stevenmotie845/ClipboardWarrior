@@ -41,7 +41,7 @@ struct ClipboardWarriorApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Clipboard Warrior", id: "archive") {
+        Window("ClipboardWarrior", id: "archive") {
             ArchiveView()
                 .environment(monitor)
                 .modelContainer(container)
@@ -108,7 +108,7 @@ private struct MenuBarLabel: View {
                 WindowActivation.activateApp()
                 openWindow(id: "archive")
                 DispatchQueue.main.async {
-                    WindowActivation.bringWindowToFront(titled: "Clipboard Warrior")
+                    WindowActivation.bringWindowToFront(titled: "ClipboardWarrior")
                 }
             }
             .task {

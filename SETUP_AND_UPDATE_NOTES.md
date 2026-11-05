@@ -30,3 +30,22 @@ This build contains no CloudKit implementation and declares no iCloud containers
 ## Build validation
 
 This environment does not include Xcode or the macOS SDK, so the macOS target could not be compiled or run here. Open `ClipboardWarrior.xcodeproj` in Xcode and build on macOS. Check Signing & Capabilities to confirm that no iCloud capability is present.
+
+
+## Release-readiness update (2.1.0, build 2)
+
+- Added `BackupRestore.swift` with a versioned JSON backup that includes clips, boards, metadata, and image payloads. Restore merges only new clip hashes and does not overwrite existing clips.
+- Backups include clips marked sensitive. The UI warns before export/import because backup files are not encrypted and may contain private clipboard data.
+- Added Backup & Restore actions to Settings.
+- Reworked `GlobalHotKey.swift` to use a selector-based preference observer instead of capturing an actor-isolated `self` in an asynchronous observer closure. Shortcut registration errors and duplicate History/Quick Paste assignments are surfaced in Settings.
+- Updated marketing version to 2.1.0 and build number to 2.
+- Set the macOS deployment target to 14.0, matching the SwiftData/Observation APIs used by this app and avoiding an unnecessarily high machine-specific deployment target.
+- Removed the stale Desktop-only folder usage description; the user can choose any local destination.
+- Removed the hard-coded development team so the project can be signed by the team selected in Xcode.
+- Preserved local-only operation, the `~/ClipboardWarrior` default, custom folder selection, Autosaver, exclusions, onboarding, and Markdown export.
+
+## Distribution status and remaining release gates
+
+This project remains configured for direct macOS development/distribution with App Sandbox disabled and Hardened Runtime enabled. It is **not yet an App Store submission build**: App Store distribution requires an App Sandbox configuration and a tested user-selected-folder permission flow. Do not switch App Sandbox on in this project without validating bookmarks, default-folder onboarding, clipboard monitoring, and Quick Paste on macOS.
+
+A full macOS build, runtime test, Developer ID signing, notarization, and stapling could not be performed in this Linux environment because Xcode and the macOS SDK are unavailable. Those steps remain required before publishing a website download. App Store screenshots, privacy policy URL, support URL, privacy declarations, and review notes must also be finalized before submission.

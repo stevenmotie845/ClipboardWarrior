@@ -16,6 +16,7 @@ nonisolated enum Pref {
     static let hotKeyStyle = "hotKeyStyle"
     static let quickPasteHotKey = "quickPasteHotKey"
     static let quickPasteStyle = "quickPasteStyle"
+    static let hotKeyRegistrationWarning = "hotKeyRegistrationWarning"
 
     static let autosave = "autosave"
     static let autosaveFolder = "autosaveFolder"
@@ -68,6 +69,7 @@ nonisolated enum Pref {
             hotKeyStyle: "commandShiftV",
             quickPasteHotKey: true,
             quickPasteStyle: "controlCommandV",
+            hotKeyRegistrationWarning: "",
             autosave: true,
             autosaveFolder: defaultAutosavePath,
             autosaveMinChars: 1,

@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(ClipboardMonitor.self) private var monitor
+    @Environment(\.modelContext) private var modelContext
 
     @AppStorage(Pref.retentionDays) private var retentionDays = 0
     @AppStorage(Pref.sensitiveMode) private var sensitiveMode = SensitiveMode.keepMasked.rawValue
@@ -19,6 +20,7 @@ struct SettingsView: View {
     @AppStorage(Pref.hotKeyStyle) private var hotKeyStyle = "commandShiftV"
     @AppStorage(Pref.quickPasteHotKey) private var quickPasteHotKey = true
     @AppStorage(Pref.quickPasteStyle) private var quickPasteStyle = "controlCommandV"
+    @AppStorage(Pref.hotKeyRegistrationWarning) private var hotKeyRegistrationWarning = ""
 
     @AppStorage(Pref.autosave) private var autosave = true
     @AppStorage(Pref.autosaveFolder) private var autosaveFolder = Pref.defaultAutosavePath
@@ -75,6 +77,12 @@ struct SettingsView: View {
                 }
                 Text("The history shortcut opens the archive. Quick Paste opens a small picker over whatever you’re working in; choose a clip and it is pasted straight into that app.")
                     .font(.caption).foregroundStyle(.secondary)
+                if !hotKeyRegistrationWarning.isEmpty {
+                    Label(hotKeyRegistrationWarning, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 LabeledContent("Auto-paste access") {
                     if autoPasteAllowed {
@@ -152,6 +160,23 @@ struct SettingsView: View {
 
             Section("Application exclusions") {
                 ApplicationExclusionRulesView()
+            }
+
+            Section("Backup & Restore") {
+                HStack(spacing: 10) {
+                    Image(systemName: "externaldrive.badge.timemachine")
+                        .font(.title2)
+                        .foregroundStyle(CWStyle.accent)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Keep a portable copy of your library")
+                            .font(.headline)
+                        Text("Backups include clips, boards, metadata, and saved images. Backup files are not encrypted.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Button("Create Backup…") { BackupRestoreManager.exportBackup(context: modelContext) }
+                Button("Restore from Backup…") { BackupRestoreManager.importBackup(context: modelContext) }
             }
 
             Section("Data") {

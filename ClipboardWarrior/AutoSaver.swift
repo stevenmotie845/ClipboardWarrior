@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 /// Writes clips to disk as  <root>/<Category>/<label>_<timestamp>.txt
-/// Default root is inside the app container. Customer-selected folders use security-scoped bookmarks.
+/// Default root is ~/ClipboardWarrior. Customer-selected folders use security-scoped bookmarks.
 ///
 /// All of this is nonisolated and runs off the main thread; the monitor hands it plain value types.
 nonisolated enum AutoSaver {

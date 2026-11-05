@@ -50,6 +50,7 @@ Every clip receives a color-coded tag powered by a weighted scoring engine to ac
 - **Real Extensions:** Save snippets as actual code files (`.py`, `.swift`, `.sh`, `.html`, `.json`) or default to `.txt`.
 - **Zero Duplicates:** Re-copying an existing clip updates its timestamp without creating duplicate clutter.
 - **Backfill Option:** Easily backfill your entire stored history into the selected folder at any time.
+- **Backup & Restore:** Create a portable JSON backup of your clips, boards, metadata, and image payloads, then merge it into another ClipboardWarrior library.
 
 ### 🔐 Built-in Privacy & Sensitive Data Guard
 
@@ -65,6 +66,7 @@ Every clip receives a color-coded tag powered by a weighted scoring engine to ac
 - **Hashtag Extraction:** Automatically extracts `#hashtags` from notes for fast searching.
 - **Exporting:** Export every clip as an individual Markdown file, or export the full archive to one category-grouped Markdown document. Sensitive clips are omitted automatically.
 - **First-Run Setup:** Choose your local autosave folder, configure capture preferences, and review Quick Paste permissions.
+- **Shortcut diagnostics:** Settings reports when a global shortcut could not be registered or conflicts with the other ClipboardWarrior shortcut.
 - **Application Exclusions:** Add installed apps or bundle identifiers that ClipboardWarrior must never read from.
 
 ---
@@ -72,16 +74,16 @@ Every clip receives a color-coded tag powered by a weighted scoring engine to ac
 ## 💻 System Requirements
 
 - **OS:** macOS 14 Sonoma or later
-- **Architecture:** Universal (Apple Silicon & Intel Macs)
+- **Architecture:** Apple Silicon and Intel where the release build is configured for both architectures.
 
 ---
 
 ## 🚀 Installation & First Run
 
-1. **Download:** Grab the latest `ClipboardWarrior.zip` from the [Releases page](https://github.com/stevenmotie845/ClipboardWarrior/releases).
-2. **Install:** Unzip the archive and move `ClipboardWarrior.app` to your **Applications** folder.
+1. **Download:** Grab the latest signed release from the [Releases page](https://github.com/stevenmotie845/ClipboardWarrior/releases).
+2. **Install:** Open the downloaded disk image or archive and move `ClipboardWarrior.app` to your **Applications** folder.
 3. **First Launch:**
-   - Right-click `ClipboardWarrior.app` and choose **Open** (required for non-notarized releases).
+   - Follow Gatekeeper prompts. A public website release should be Developer ID signed and notarized before publication.
    - Complete the first-launch setup. Keep the default `~/ClipboardWarrior` folder or choose your own location.
    - You can change the autosave destination at any time under **Settings > Autosave to folder**.
    - ClipboardWarrior runs locally and does not request an iCloud capability or provisioning profile.

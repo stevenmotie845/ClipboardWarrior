@@ -332,7 +332,7 @@ struct MenuBarView: View {
         WindowActivation.activateApp()
         openWindow(id: "archive")
         DispatchQueue.main.async {
-            WindowActivation.bringWindowToFront(titled: "Clipboard Warrior")
+            WindowActivation.bringWindowToFront(titled: "ClipboardWarrior")
         }
     }
 }
