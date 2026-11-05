@@ -15,6 +15,10 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				QA/DetectorHarness.swift,
+				QA/DetectorMain.swift,
+				QA/RetentionHarness.swift,
+				QA/RetentionMain.swift,
 			);
 			target = 000000000000000100000000 /* ClipboardWarrior */;
 		};
@@ -89,7 +93,7 @@
 				TargetAttributes = {
 					000000000000000100000000 = {
 						CreatedOnToolsVersion = 26.3;
-						LastSwiftMigration = 2710;
+						LastSwiftMigration = 2720;
 					};
 				};
 			};

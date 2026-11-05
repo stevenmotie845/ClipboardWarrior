@@ -12,8 +12,8 @@ mkdir -p "$TMP/module-cache"
 echo "==> Detector tests"
 swiftc \
     -module-cache-path "$TMP/module-cache" \
-    "$ROOT/ClipboardWarrior/Models.swift" \
-    "$ROOT/ClipboardWarrior/Detector.swift" \
+    "$ROOT/Models.swift" \
+    "$ROOT/Detector.swift" \
     "$ROOT/QA/DetectorHarness.swift" \
     "$ROOT/QA/DetectorMain.swift" \
     -o "$TMP/detector-tests"
@@ -23,7 +23,7 @@ echo ""
 echo "==> Retention tests"
 swiftc \
     -module-cache-path "$TMP/module-cache" \
-    "$ROOT/ClipboardWarrior/RetentionPolicy.swift" \
+    "$ROOT/RetentionPolicy.swift" \
     "$ROOT/QA/RetentionHarness.swift" \
     "$ROOT/QA/RetentionMain.swift" \
     -o "$TMP/retention-tests"
@@ -31,7 +31,7 @@ swiftc \
 
 echo ""
 echo "==> Swift syntax parse (all app sources)"
-swiftc -frontend -parse "$ROOT"/ClipboardWarrior/*.swift
+swiftc -frontend -parse "$ROOT"/*.swift
 
 echo ""
 echo "PASS: all portable tests and syntax checks completed."

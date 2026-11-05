@@ -44,3 +44,4 @@ ClipboardWarrior_Update.zip
 # Environment & Private Configs
 .env
 config.json
+.derivedData/

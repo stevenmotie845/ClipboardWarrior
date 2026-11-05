@@ -151,7 +151,6 @@ struct SettingsView: View {
                 Picker("When a clip looks sensitive", selection: $sensitiveMode) {
                     ForEach(SensitiveMode.allCases) { Text($0.title).tag($0.rawValue) }
                 }
-                }
             }
 
             Section("Application exclusions") {
