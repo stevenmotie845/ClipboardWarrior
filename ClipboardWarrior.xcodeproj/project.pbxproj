@@ -291,7 +291,7 @@
 				INFOPLIST_FILE = ClipboardWarrior/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ClipboardWarrior;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "ClipboardWarrior saves your copied clips as files in a ClipboardWarrior folder on your Desktop.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -350,7 +350,7 @@
 				INFOPLIST_FILE = ClipboardWarrior/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ClipboardWarrior;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_LSUIElement = NO;
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "ClipboardWarrior saves your copied clips as files in a ClipboardWarrior folder on your Desktop.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
